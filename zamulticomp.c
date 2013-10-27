@@ -1,4 +1,4 @@
-/* zamcompx2.c  ZamCompX2 stereo compressor
+/* zamulticomp.c  ZaMultiComp mono multiband compressor
  * Copyright (C) 2013  Damien Zammit
  *
  * This program is free software; you can redistribute it and/or
@@ -21,57 +21,101 @@
 
 #include "lv2/lv2plug.in/ns/lv2core/lv2.h"
 
-#define ZAMCOMPX2_URI "http://zamaudio.com/lv2/zamcompx2"
-
-#define STEREOLINK_UNCOUPLED 0
-#define STEREOLINK_AVERAGE 1
-#define STEREOLINK_MAX 2
-
+#define ZAMULTICOMP_URI "http://zamaudio.com/lv2/zamulticomp"
+#define MAX_FILT 4
+#define MAX_COMP 3
+#define ONEOVERROOT2 0.7071068f
 
 typedef enum {
-	ZAMCOMP_INPUT_L = 0,
-	ZAMCOMP_INPUT_R = 1,
-	ZAMCOMP_OUTPUT_L = 2,
-	ZAMCOMP_OUTPUT_R = 3,
+	ZAMCOMP_INPUT = 0,
+	ZAMCOMP_OUTPUT = 1,
 
-	ZAMCOMP_ATTACK = 4,
-	ZAMCOMP_RELEASE = 5,
-	ZAMCOMP_KNEE = 6,
-	ZAMCOMP_RATIO = 7,
-	ZAMCOMP_THRESHOLD = 8,
-	ZAMCOMP_MAKEUP = 9,
+	ZAMCOMP_ATTACK1 = 2,
+	ZAMCOMP_RELEASE1 = 3,
+	ZAMCOMP_KNEE1 = 4,
+	ZAMCOMP_RATIO1 = 5,
+	ZAMCOMP_THRESHOLD1 = 6,
+	ZAMCOMP_MAKEUP1 = 7,
 	
-	ZAMCOMP_GAINR_L = 10,
-	ZAMCOMP_GAINR_R = 11,
+	ZAMCOMP_ATTACK2 = 8,
+	ZAMCOMP_RELEASE2 = 9,
+	ZAMCOMP_KNEE2 = 10,
+	ZAMCOMP_RATIO2 = 11,
+	ZAMCOMP_THRESHOLD2 = 12,
+	ZAMCOMP_MAKEUP2 = 13,
+	
+	ZAMCOMP_ATTACK3 = 14,
+	ZAMCOMP_RELEASE3 = 15,
+	ZAMCOMP_KNEE3 = 16,
+	ZAMCOMP_RATIO3 = 17,
+	ZAMCOMP_THRESHOLD3 = 18,
+	ZAMCOMP_MAKEUP3 = 19,
+	
+	ZAMCOMP_XOVER1 = 20,
+	ZAMCOMP_XOVER2 = 21,
 
-	ZAMCOMP_STEREOLINK = 12
+	ZAMCOMP_GAINR1 = 22,
+	ZAMCOMP_GAINR2 = 23,
+	ZAMCOMP_GAINR3 = 24,
+
+	ZAMCOMP_TOGGLE1 = 25,
+	ZAMCOMP_TOGGLE2 = 26,
+	ZAMCOMP_TOGGLE3 = 27,
+	ZAMCOMP_GAINGLOBAL = 28
 } PortIndex;
 
 
 typedef struct {
-	float* input_l;
-	float* input_r;
-	float* output_l;
-	float* output_r;
+	float* input;
+	float* output;
   
-	float* attack;
-	float* release;
-	float* knee;
-	float* ratio;
-	float* threshold;
-	float* makeup;
+	float* attack1;
+	float* release1;
+	float* knee1;
+	float* ratio1;
+	float* threshold1;
+	float* makeup1;
+	float* gainr1;
+	float* toggle1;
+ 
+	float* attack2;
+	float* release2;
+	float* knee2;
+	float* ratio2;
+	float* threshold2;
+	float* makeup2;
+	float* gainr2;
+	float* toggle2;
 
-	float* gainr_l;
-	float* gainr_r;
+	float* attack3;
+	float* release3;
+	float* knee3;
+	float* ratio3;
+	float* threshold3;
+	float* makeup3;
+	float* gainr3;
+	float* toggle3;
 
-	float* stereolink;
+	float* xover1;
+	float* xover2;
+
+	float* gainglobal;
 
 	float srate;
-	float oldL_yl;
-	float oldR_yl;
-	float oldL_y1;
-	float oldR_y1;
- 
+	float old_yl[MAX_COMP];
+	float old_y1[MAX_COMP];
+
+	// Crossover filter coefficients
+	float a0[MAX_FILT];
+	float a1[MAX_FILT];
+	float a2[MAX_FILT];
+	float b1[MAX_FILT];
+	float b2[MAX_FILT];
+
+	//Crossover filter states
+	float w1[MAX_FILT];
+	float w2[MAX_FILT];
+  
 } ZamCOMP;
 
 static LV2_Handle
@@ -83,9 +127,17 @@ instantiate(const LV2_Descriptor* descriptor,
 	ZamCOMP* zamcomp = (ZamCOMP*)malloc(sizeof(ZamCOMP));
 	zamcomp->srate = rate;
   
-	zamcomp->oldL_yl=zamcomp->oldL_y1=0.f;
-	zamcomp->oldR_yl=zamcomp->oldR_y1=0.f;
-  
+	int i;
+	for (i = 0; i < MAX_COMP; i++) {
+		zamcomp->old_yl[i]=zamcomp->old_y1[i]=0.f;
+	}
+	
+	for (i = 0; i < MAX_FILT; i++) {
+		zamcomp->a0[i] = zamcomp->a1[i] = zamcomp->a2[i] = 0.f;
+		zamcomp->b1[i] = zamcomp->b2[i] = 0.f;
+		zamcomp->w1[i] = zamcomp->w2[i] = 0.f;
+	}
+
 	return (LV2_Handle)zamcomp;
 }
 
@@ -97,44 +149,97 @@ connect_port(LV2_Handle instance,
 	ZamCOMP* zamcomp = (ZamCOMP*)instance;
   
 	switch ((PortIndex)port) {
-	case ZAMCOMP_INPUT_L:
-		zamcomp->input_l = (float*)data;
+	case ZAMCOMP_INPUT:
+		zamcomp->input = (float*)data;
   	break;
-	case ZAMCOMP_INPUT_R:
-		zamcomp->input_r = (float*)data;
+	case ZAMCOMP_OUTPUT:
+		zamcomp->output = (float*)data;
   	break;
-	case ZAMCOMP_OUTPUT_L:
-		zamcomp->output_l = (float*)data;
-  	break;
-	case ZAMCOMP_OUTPUT_R:
-		zamcomp->output_r = (float*)data;
-  	break;
-	case ZAMCOMP_ATTACK:
-		zamcomp->attack = (float*)data;
+
+	case ZAMCOMP_ATTACK1:
+		zamcomp->attack1 = (float*)data;
 	break;
-	case ZAMCOMP_RELEASE:
-		zamcomp->release = (float*)data;
+	case ZAMCOMP_RELEASE1:
+		zamcomp->release1 = (float*)data;
 	break;
-	case ZAMCOMP_KNEE:
-		zamcomp->knee = (float*)data;
+	case ZAMCOMP_KNEE1:
+		zamcomp->knee1 = (float*)data;
 	break;
-	case ZAMCOMP_RATIO:
-		zamcomp->ratio = (float*)data;
+	case ZAMCOMP_RATIO1:
+		zamcomp->ratio1 = (float*)data;
 	break;
-	case ZAMCOMP_THRESHOLD:
-		zamcomp->threshold = (float*)data;
+	case ZAMCOMP_THRESHOLD1:
+		zamcomp->threshold1 = (float*)data;
 	break;
-	case ZAMCOMP_MAKEUP:
-		zamcomp->makeup = (float*)data;
+	case ZAMCOMP_MAKEUP1:
+		zamcomp->makeup1 = (float*)data;
 	break;
-	case ZAMCOMP_GAINR_L:
-		zamcomp->gainr_l = (float*)data;
+	case ZAMCOMP_GAINR1:
+		zamcomp->gainr1 = (float*)data;
 	break;
-	case ZAMCOMP_GAINR_R:
-		zamcomp->gainr_r = (float*)data;
+	case ZAMCOMP_TOGGLE1:
+		zamcomp->toggle1 = (float*)data;
 	break;
-	case ZAMCOMP_STEREOLINK:
-		zamcomp->stereolink = (float*)data;
+
+	case ZAMCOMP_ATTACK2:
+		zamcomp->attack2 = (float*)data;
+	break;
+	case ZAMCOMP_RELEASE2:
+		zamcomp->release2 = (float*)data;
+	break;
+	case ZAMCOMP_KNEE2:
+		zamcomp->knee2 = (float*)data;
+	break;
+	case ZAMCOMP_RATIO2:
+		zamcomp->ratio2 = (float*)data;
+	break;
+	case ZAMCOMP_THRESHOLD2:
+		zamcomp->threshold2 = (float*)data;
+	break;
+	case ZAMCOMP_MAKEUP2:
+		zamcomp->makeup2 = (float*)data;
+	break;
+	case ZAMCOMP_GAINR2:
+		zamcomp->gainr2 = (float*)data;
+	break;
+	case ZAMCOMP_TOGGLE2:
+		zamcomp->toggle2 = (float*)data;
+	break;
+
+	case ZAMCOMP_ATTACK3:
+		zamcomp->attack3 = (float*)data;
+	break;
+	case ZAMCOMP_RELEASE3:
+		zamcomp->release3 = (float*)data;
+	break;
+	case ZAMCOMP_KNEE3:
+		zamcomp->knee3 = (float*)data;
+	break;
+	case ZAMCOMP_RATIO3:
+		zamcomp->ratio3 = (float*)data;
+	break;
+	case ZAMCOMP_THRESHOLD3:
+		zamcomp->threshold3 = (float*)data;
+	break;
+	case ZAMCOMP_MAKEUP3:
+		zamcomp->makeup3 = (float*)data;
+	break;
+	case ZAMCOMP_GAINR3:
+		zamcomp->gainr3 = (float*)data;
+	break;
+	case ZAMCOMP_TOGGLE3:
+		zamcomp->toggle3 = (float*)data;
+	break;
+
+	case ZAMCOMP_XOVER1:
+		zamcomp->xover1 = (float*)data;
+	break;
+	case ZAMCOMP_XOVER2:
+		zamcomp->xover2 = (float*)data;
+	break;
+	
+	case ZAMCOMP_GAINGLOBAL:
+		zamcomp->gainglobal = (float*)data;
 	break;
 	}
 }
@@ -171,112 +276,165 @@ activate(LV2_Handle instance)
 {
 }
 
+float run_filter(LV2_Handle lv2, int i, float in)
+{
+	ZamCOMP* zamcomp = (ZamCOMP*)lv2;	
+	sanitize_denormal(in);
+	sanitize_denormal(zamcomp->w1[i]); 
+	sanitize_denormal(zamcomp->w2[i]);
+
+	float tmp = in - zamcomp->w1[i] * zamcomp->b1[i] - zamcomp->w2[i] * zamcomp->b2[i];
+	float out = tmp * zamcomp->a0[i] + zamcomp->w1[i] * zamcomp->a1[i] + zamcomp->w2[i] * zamcomp->a2[i];
+	zamcomp->w2[i] = zamcomp->w1[i];
+	zamcomp->w1[i] = tmp;
+	return out;
+}
+
+static
+inline void set_lp_coeffs(LV2_Handle lv2, float fc, float q, float sr, int i, float gain = 1.0)
+{
+	ZamCOMP* zamcomp = (ZamCOMP*)lv2;	
+	float omega=(float)(2.f*M_PI*fc/sr);
+	float sn=sin(omega);
+	float cs=cos(omega);
+	float alpha=(float)(sn/(2.f*q));
+	float inv=(float)(1.0/(1.0+alpha));
+
+	zamcomp->a2[i] =  zamcomp->a0[i] =  (float)(gain*inv*(1.f - cs)*0.5f);
+	zamcomp->a1[i] =  zamcomp->a0[i] + zamcomp->a0[i];
+	zamcomp->b1[i] =  (float)(-2.f*cs*inv);
+	zamcomp->b2[i] =  (float)((1.f - alpha)*inv);
+}
+
+static
+inline void set_hp_coeffs(LV2_Handle lv2, float fc, float q, float sr, int i, float gain=1.0)
+{
+	ZamCOMP* zamcomp = (ZamCOMP*)lv2;	
+	float omega=(float)(2.f*M_PI*fc/sr);
+	float sn=sin(omega);
+	float cs=cos(omega);
+	float alpha=(float)(sn/(2.f*q));
+
+	float inv=(float)(1.f/(1.f+alpha));
+
+	zamcomp->a0[i] =  (float)(gain*inv*(1.f + cs)/2.f);
+	zamcomp->a1[i] =  -2.f * zamcomp->a0[i];
+	zamcomp->a2[i] =  zamcomp->a0[i];
+	zamcomp->b1[i] =  (float)(-2.f*cs*inv);
+	zamcomp->b2[i] =  (float)((1.f - alpha)*inv);
+}
+
+static
+inline float run_comp(LV2_Handle lv2, int k, float attack, float release, float knee,
+	float ratio, float threshold, float makeup, float* gainr, float in)
+{
+	ZamCOMP* zamcomp = (ZamCOMP*)lv2;	
+	makeup = from_dB(makeup);
+	float width=(knee-0.99f)*6.f;
+	float attack_coeff = exp(-1000.f/(attack * zamcomp->srate));
+	float release_coeff = exp(-1000.f/(release * zamcomp->srate));
+
+	float cdb=0.f;
+	float gain = 1.f;
+	float xg, xl, yg, yl, y1;
+	float out;
+
+	yg=0.f;
+	xg = (in==0.f) ? -160.f : to_dB(fabs(in));
+	sanitize_denormal(xg);
+
+
+	if (2.f*(xg-threshold)<-width) {
+		yg = xg;
+	} else if (2.f*fabs(xg-threshold)<=width) {
+		yg = xg + (1.f/ratio-1.f)*(xg-threshold+width/2.f)*(xg-threshold+width/2.f)/(2.f*width);
+	} else if (2.f*(xg-threshold)>width) {
+		yg = threshold + (xg-threshold)/ratio;
+	}
+
+	sanitize_denormal(yg);
+
+	xl = xg - yg;
+	sanitize_denormal(zamcomp->old_y1[k]);
+	sanitize_denormal(zamcomp->old_yl[k]);
+
+	y1 = fmaxf(xl, release_coeff * zamcomp->old_y1[k]+(1.f-release_coeff)*xl);
+	yl = attack_coeff * zamcomp->old_yl[k]+(1.f-attack_coeff)*y1;
+	sanitize_denormal(y1);
+	sanitize_denormal(yl);
+
+	cdb = -yl;
+	gain = from_dB(cdb);
+
+	*gainr = yl;
+
+	out = in;
+	out *= gain * makeup;
+
+	zamcomp->old_yl[k] = yl; 
+	zamcomp->old_y1[k] = y1;
+	return out;
+}
+
 static void
 run(LV2_Handle instance, uint32_t n_samples)
 {
 	ZamCOMP* zamcomp = (ZamCOMP*)instance;
   
-	const float* const input_l = zamcomp->input_l;
-	const float* const input_r = zamcomp->input_r;
-	float* const output_l = zamcomp->output_l;
-	float* const output_r = zamcomp->output_r;
+	const float* const input = zamcomp->input;
+	float* const output = zamcomp->output;
   
-	float attack = *(zamcomp->attack);
-	float release = *(zamcomp->release);
-	float knee = *(zamcomp->knee);
-	float ratio = *(zamcomp->ratio);
-	float threshold = from_dB(*(zamcomp->threshold));
-	float makeup = from_dB(*(zamcomp->makeup));
-	float* const gainr_l =  zamcomp->gainr_l;
-	float* const gainr_r =  zamcomp->gainr_r;
-	int stereolink = (*(zamcomp->stereolink) > 1.f) ? STEREOLINK_MAX : (*(zamcomp->stereolink) > 0.f) ? STEREOLINK_AVERAGE : STEREOLINK_UNCOUPLED;
-	float width=(knee-0.99f)*6.f;
-	float cdb=0.f;
-	float attack_coeff = exp(-1000.f/(attack * zamcomp->srate));
-	float release_coeff = exp(-1000.f/(release * zamcomp->srate));
-	float thresdb= to_dB(threshold);
- 
-	float Lgain = 1.f;
-	float Rgain = 1.f;
-	float Lxg, Lyg;
-	float Rxg, Ryg;
-	float Lxl, Lyl, Ly1;
-	float Rxl, Ryl, Ry1;
- 
+	int toggle1 = (*(zamcomp->toggle1) > 0.f) ? 1 : 0;
+	int toggle2 = (*(zamcomp->toggle2) > 0.f) ? 1 : 0;
+	int toggle3 = (*(zamcomp->toggle3) > 0.f) ? 1 : 0;
+
+	set_lp_coeffs(zamcomp, *(zamcomp->xover1), ONEOVERROOT2, zamcomp->srate, 0);
+	set_hp_coeffs(zamcomp, *(zamcomp->xover1), ONEOVERROOT2, zamcomp->srate, 1);
+	set_lp_coeffs(zamcomp, *(zamcomp->xover2), ONEOVERROOT2, zamcomp->srate, 2);
+	set_hp_coeffs(zamcomp, *(zamcomp->xover2), ONEOVERROOT2, zamcomp->srate, 3);
+
 	for (uint32_t i = 0; i < n_samples; ++i) {
-		Lyg = Ryg = 0.f;
-		Lxg = (input_l[i]==0.f) ? -160.f : to_dB(fabs(input_l[i]));
-		Rxg = (input_r[i]==0.f) ? -160.f : to_dB(fabs(input_r[i]));
-		sanitize_denormal(Lxg);
-		sanitize_denormal(Rxg);
-    
-    
-		if (2.f*(Lxg-thresdb)<-width) {
-			Lyg = Lxg;
-		} else if (2.f*fabs(Lxg-thresdb)<=width) {
-			Lyg = Lxg + (1.f/ratio-1.f)*(Lxg-thresdb+width/2.f)*(Lxg-thresdb+width/2.f)/(2.f*width);
-		} else if (2.f*(Lxg-thresdb)>width) {
-			Lyg = thresdb + (Lxg-thresdb)/ratio;
-		}
-    
-		sanitize_denormal(Lyg);
-    
-		if (2.f*(Rxg-thresdb)<-width) {
-			Ryg = Rxg;
-		} else if (2.f*fabs(Rxg-thresdb)<=width) {
-			Ryg = Rxg + (1.f/ratio-1.f)*(Rxg-thresdb+width/2.f)*(Rxg-thresdb+width/2.f)/(2.f*width);
-		} else if (2.f*(Rxg-thresdb)>width) {
-			Ryg = thresdb + (Rxg-thresdb)/ratio;
-		}
-    
-		sanitize_denormal(Ryg);
 
-		if (stereolink == STEREOLINK_UNCOUPLED) {
-			Lxl = Lxg - Lyg;
-			Rxl = Rxg - Ryg;
-		} else if (stereolink == STEREOLINK_MAX) {
-			Lxl = Rxl = fmaxf(Lxg - Lyg, Rxg - Ryg);
-		} else {
-			Lxl = Rxl = (Lxg - Lyg + Rxg - Ryg) / 2.f;
-		}
+		float tmp1, tmp2, tmp3, tmp4, tmp5, tmp6;
+		output[i] = input[i];
 
-		sanitize_denormal(zamcomp->oldL_y1);
-		sanitize_denormal(zamcomp->oldR_y1);
-		sanitize_denormal(zamcomp->oldL_yl);
-		sanitize_denormal(zamcomp->oldR_yl);
-
-
-		Ly1 = fmaxf(Lxl, release_coeff * zamcomp->oldL_y1+(1.f-release_coeff)*Lxl);
-		Lyl = attack_coeff * zamcomp->oldL_yl+(1.f-attack_coeff)*Ly1;
-		sanitize_denormal(Ly1);
-		sanitize_denormal(Lyl);
-    
-		cdb = -Lyl;
-		Lgain = from_dB(cdb);
-
-		*gainr_l = Lyl;
-
-
-		Ry1 = fmaxf(Rxl, release_coeff * zamcomp->oldR_y1+(1.f-release_coeff)*Rxl);
-		Ryl = attack_coeff * zamcomp->oldR_yl+(1.f-attack_coeff)*Ry1;
-		sanitize_denormal(Ry1);
-		sanitize_denormal(Ryl);
-    
-		cdb = -Ryl;
-		Rgain = from_dB(cdb);
-
-		*gainr_r = Ryl;
-
-		output_l[i] = input_l[i];
-		output_l[i] *= Lgain * makeup;
-		output_r[i] = input_r[i];
-		output_r[i] *= Rgain * makeup;
-    
-		zamcomp->oldL_yl = Lyl;
-		zamcomp->oldR_yl = Ryl;
-		zamcomp->oldL_y1 = Ly1;
-		zamcomp->oldR_y1 = Ry1;
-		}
+		tmp1 = run_filter(zamcomp, 0, input[i]);
+		tmp2 = toggle1 ? 
+			run_comp(zamcomp, 0, 
+				*(zamcomp->attack1), 
+				*(zamcomp->release1), 
+				*(zamcomp->knee1),
+				*(zamcomp->ratio1), 
+				*(zamcomp->threshold1), 
+				*(zamcomp->makeup1), 
+				zamcomp->gainr1,
+				tmp1) : tmp1;
+		tmp3 = run_filter(zamcomp, 1, input[i]);
+		tmp4 = run_filter(zamcomp, 2, tmp3);
+		tmp3 = toggle2 ? 
+			run_comp(zamcomp, 1, 
+				*(zamcomp->attack2), 
+				*(zamcomp->release2), 
+				*(zamcomp->knee2),
+				*(zamcomp->ratio2), 
+				*(zamcomp->threshold2), 
+				*(zamcomp->makeup2), 
+				zamcomp->gainr2,
+				tmp4) : tmp4;
+		tmp5 = run_filter(zamcomp, 3, input[i]);
+		tmp6 = toggle3 ? 
+			run_comp(zamcomp, 2, 
+				*(zamcomp->attack3), 
+				*(zamcomp->release3), 
+				*(zamcomp->knee3),
+				*(zamcomp->ratio3), 
+				*(zamcomp->threshold3), 
+				*(zamcomp->makeup3), 
+				zamcomp->gainr3,
+				tmp5) : tmp5;
+		output[i] = tmp2 + tmp3 + tmp6;
+		output[i] *= 2.f * from_dB(*(zamcomp->gainglobal));
+	}
 }
 
 static void
@@ -297,7 +455,7 @@ extension_data(const char* uri)
 }
 
 static const LV2_Descriptor descriptor = {
-	ZAMCOMPX2_URI,
+	ZAMULTICOMP_URI,
 	instantiate,
 	connect_port,
 	activate,

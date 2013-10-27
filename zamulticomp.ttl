@@ -7,12 +7,12 @@
 @prefix pg: <http://lv2plug.in/ns/ext/port-groups#>.
 @prefix ue: <http://lv2plug.in/ns/extensions/units#>.
 
-<http://zamaudio.com/lv2/zamcompx2>
+<http://zamaudio.com/lv2/zamulticomp>
 	a lv2:Plugin;
-	a lv2:CompressorPlugin;
+	a lv2:DynamicsPlugin;
 
-	lv2:binary <zamcompx2.so>;
-	doap:name "ZamCompX2";
+	lv2:binary <zamulticomp.so>;
+	doap:name "ZaMultiComp";
 	doap:maintainer [
 		foaf:name "Damien Zammit";
 		foaf:homepage <http://zamaudio.com>;
@@ -26,36 +26,22 @@
 lv2:port [
 	a lv2:AudioPort, lv2:InputPort;
 	lv2:index 0;
-	lv2:symbol "input_l";
-	lv2:name "Input L";
+	lv2:symbol "input";
+	lv2:name "Input";
 	],
 
 	[
-	a lv2:AudioPort, lv2:InputPort;
+	a lv2:AudioPort, lv2:OutputPort;
 	lv2:index 1;
-	lv2:symbol "input_r";
-	lv2:name "Input R";
-	],
-
-	[
-	a lv2:AudioPort, lv2:OutputPort;
-	lv2:index 2;
-	lv2:symbol "output_l";
-	lv2:name "Output L";
-	],
-
-	[
-	a lv2:AudioPort, lv2:OutputPort;
-	lv2:index 3;
-	lv2:symbol "output_r";
-	lv2:name "Output R";
+	lv2:symbol "output";
+	lv2:name "Output";
 	],
 
 	[
 	a lv2:ControlPort, lv2:InputPort ;
-	lv2:index 4;
-	lv2:symbol "attack";
-	lv2:name "Attack (ms)";
+	lv2:index 2;
+	lv2:symbol "attack1";
+	lv2:name "A: Attack (ms)";
 	lv2:minimum 0.25 ;
 	lv2:maximum 80.0 ;
 	lv2:default 10.0 ;
@@ -64,9 +50,9 @@ lv2:port [
 
 	[
 	a lv2:ControlPort, lv2:InputPort ;
-	lv2:index 5;
-	lv2:symbol "release";
-	lv2:name "Release (ms)";
+	lv2:index 3;
+	lv2:symbol "release1";
+	lv2:name "A: Release (ms)";
 	lv2:minimum 2.0 ;
 	lv2:maximum 500.0 ;
 	lv2:default 80.0 ;
@@ -75,9 +61,9 @@ lv2:port [
 
 	[
 	a lv2:ControlPort, lv2:InputPort ;
-	lv2:index 6;
-	lv2:symbol "knee";
-	lv2:name "Knee (dB)";
+	lv2:index 4;
+	lv2:symbol "knee1";
+	lv2:name "A: Knee (dB)";
 	lv2:minimum 0.0 ;
 	lv2:maximum 30.0 ;
 	lv2:default 3.0 ;
@@ -86,9 +72,9 @@ lv2:port [
 	
 	[
 	a lv2:ControlPort, lv2:InputPort ;
-	lv2:index 7;
-	lv2:symbol "ratio";
-	lv2:name "Ratio (dB)";
+	lv2:index 5;
+	lv2:symbol "ratio1";
+	lv2:name "A: Ratio (dB)";
 	lv2:minimum 1.0 ;
 	lv2:maximum 20.0 ;
 	lv2:default 3.0 ;
@@ -97,9 +83,9 @@ lv2:port [
 	
 	[
 	a lv2:ControlPort, lv2:InputPort ;
-	lv2:index 8;
-	lv2:symbol "threshold";
-	lv2:name "Threshold (dB)";
+	lv2:index 6;
+	lv2:symbol "threshold1";
+	lv2:name "A: Threshold (dB)";
 	lv2:minimum -60.0 ;
 	lv2:maximum 0.0 ;
 	lv2:default 0.0 ;
@@ -108,20 +94,179 @@ lv2:port [
 	
 	[
 	a lv2:ControlPort, lv2:InputPort ;
-	lv2:index 9;
-	lv2:symbol "makeup";
-	lv2:name "Makeup Gain (dB)";
+	lv2:index 7;
+	lv2:symbol "makeup1";
+	lv2:name "A: Makeup Gain (dB)";
 	lv2:minimum 0.0 ;
 	lv2:maximum 30.0 ;
 	lv2:default 0.0 ;
 	ue:unit ue:db;
 	],
 
+	
+	[
+	a lv2:ControlPort, lv2:InputPort ;
+	lv2:index 8;
+	lv2:symbol "attack2";
+	lv2:name "B: Attack (ms)";
+	lv2:minimum 0.25 ;
+	lv2:maximum 80.0 ;
+	lv2:default 10.0 ;
+	ue:unit ue:ms;
+	],
+
+	[
+	a lv2:ControlPort, lv2:InputPort ;
+	lv2:index 9;
+	lv2:symbol "release2";
+	lv2:name "B: Release (ms)";
+	lv2:minimum 2.0 ;
+	lv2:maximum 500.0 ;
+	lv2:default 80.0 ;
+	ue:unit ue:ms;
+	],
+
+	[
+	a lv2:ControlPort, lv2:InputPort ;
+	lv2:index 10;
+	lv2:symbol "knee2";
+	lv2:name "B: Knee (dB)";
+	lv2:minimum 0.0 ;
+	lv2:maximum 30.0 ;
+	lv2:default 3.0 ;
+	ue:unit ue:db;
+	],
+	
+	[
+	a lv2:ControlPort, lv2:InputPort ;
+	lv2:index 11;
+	lv2:symbol "ratio2";
+	lv2:name "B: Ratio (dB)";
+	lv2:minimum 1.0 ;
+	lv2:maximum 20.0 ;
+	lv2:default 3.0 ;
+	ue:unit ue:db;
+	],
+	
+	[
+	a lv2:ControlPort, lv2:InputPort ;
+	lv2:index 12;
+	lv2:symbol "threshold2";
+	lv2:name "B: Threshold (dB)";
+	lv2:minimum -60.0 ;
+	lv2:maximum 0.0 ;
+	lv2:default 0.0 ;
+	ue:unit ue:db;
+	],
+	
+	[
+	a lv2:ControlPort, lv2:InputPort ;
+	lv2:index 13;
+	lv2:symbol "makeup2";
+	lv2:name "B: Makeup Gain (dB)";
+	lv2:minimum 0.0 ;
+	lv2:maximum 30.0 ;
+	lv2:default 0.0 ;
+	ue:unit ue:db;
+	],
+
+	
+	[
+	a lv2:ControlPort, lv2:InputPort ;
+	lv2:index 14;
+	lv2:symbol "attack3";
+	lv2:name "C: Attack (ms)";
+	lv2:minimum 0.25 ;
+	lv2:maximum 80.0 ;
+	lv2:default 10.0 ;
+	ue:unit ue:ms;
+	],
+
+	[
+	a lv2:ControlPort, lv2:InputPort ;
+	lv2:index 15;
+	lv2:symbol "release3";
+	lv2:name "C: Release (ms)";
+	lv2:minimum 2.0 ;
+	lv2:maximum 500.0 ;
+	lv2:default 80.0 ;
+	ue:unit ue:ms;
+	],
+
+	[
+	a lv2:ControlPort, lv2:InputPort ;
+	lv2:index 16;
+	lv2:symbol "knee3";
+	lv2:name "C: Knee (dB)";
+	lv2:minimum 0.0 ;
+	lv2:maximum 30.0 ;
+	lv2:default 3.0 ;
+	ue:unit ue:db;
+	],
+	
+	[
+	a lv2:ControlPort, lv2:InputPort ;
+	lv2:index 17;
+	lv2:symbol "ratio3";
+	lv2:name "C: Ratio (dB)";
+	lv2:minimum 1.0 ;
+	lv2:maximum 20.0 ;
+	lv2:default 3.0 ;
+	ue:unit ue:db;
+	],
+	
+	[
+	a lv2:ControlPort, lv2:InputPort ;
+	lv2:index 18;
+	lv2:symbol "threshold3";
+	lv2:name "C: Threshold (dB)";
+	lv2:minimum -60.0 ;
+	lv2:maximum 0.0 ;
+	lv2:default 0.0 ;
+	ue:unit ue:db;
+	],
+	
+	[
+	a lv2:ControlPort, lv2:InputPort ;
+	lv2:index 19;
+	lv2:symbol "makeup3";
+	lv2:name "C: Makeup Gain (dB)";
+	lv2:minimum 0.0 ;
+	lv2:maximum 30.0 ;
+	lv2:default 0.0 ;
+	ue:unit ue:db;
+	],
+
+	
+	[
+	a lv2:ControlPort, lv2:InputPort ;
+	lv2:index 20;
+	lv2:symbol "xover1";
+	lv2:name "A/B Crossover Freq (Hz)";
+	lv2:minimum 80.0 ;
+	lv2:maximum 4000.0;
+	lv2:default 250.0;
+	lv2:portProperty lv2:logarithmic;
+	ue:unit ue:hz;
+	],
+
+	[
+	a lv2:ControlPort, lv2:InputPort ;
+	lv2:index 21;
+	lv2:symbol "xover2";
+	lv2:name "B/C Crossover Freq (Hz)";
+	lv2:minimum 250.0 ;
+	lv2:maximum 16000.0;
+	lv2:default 3000.0;
+	lv2:portProperty lv2:logarithmic;
+	ue:unit ue:hz;
+	],
+
 	[
 	a lv2:ControlPort, lv2:OutputPort;
-	lv2:index 10;
-	lv2:symbol "gain_reduction_l";
-	lv2:name "Gain Reduction L (dB)";
+	lv2:index 22;
+	lv2:symbol "gain_reduction_1";
+	lv2:name "A: Gain Reduction (dB)";
 	lv2:minimum 0.0 ;
 	lv2:maximum 12.0 ;
 	lv2:default 0.0 ;
@@ -132,27 +277,70 @@ lv2:port [
 
 	[
 	a lv2:ControlPort, lv2:OutputPort;
-	lv2:index 11;
-	lv2:symbol "gain_reduction_r";
-	lv2:name "Gain Reduction R (dB)";
+	lv2:index 23;
+	lv2:symbol "gain_reduction_2";
+	lv2:name "B: Gain Reduction (dB)";
 	lv2:minimum 0.0 ;
 	lv2:maximum 12.0 ;
 	lv2:default 0.0 ;
 	lv2:scalePoint [ rdfs:label "0"; rdf:value 0 ] ;
 	lv2:scalePoint [ rdfs:label "6"; rdf:value 6 ] ;
 	lv2:scalePoint [ rdfs:label "12"; rdf:value 12 ] ;
+	],
+
+	[
+	a lv2:ControlPort, lv2:OutputPort;
+	lv2:index 24;
+	lv2:symbol "gain_reduction_3";
+	lv2:name "C: Gain Reduction (dB)";
+	lv2:minimum 0.0 ;
+	lv2:maximum 12.0 ;
+	lv2:default 0.0 ;
+	lv2:scalePoint [ rdfs:label "0"; rdf:value 0 ] ;
+	lv2:scalePoint [ rdfs:label "6"; rdf:value 6 ] ;
+	lv2:scalePoint [ rdfs:label "12"; rdf:value 12 ] ;
+	],
+	
+	[
+	a lv2:ControlPort, lv2:InputPort;
+	lv2:index 25;
+	lv2:symbol "toggle1";
+	lv2:name "A: ZamComp ON";
+	lv2:minimum 0.0 ;
+	lv2:maximum 1.0 ;
+	lv2:default 0.0 ;
+	lv2:portProperty lv2:toggled;
 	],
 
 	[
 	a lv2:ControlPort, lv2:InputPort;
-	lv2:index 12;
-	lv2:symbol "stereolink";
-	lv2:name "Stereo Linkage";
+	lv2:index 26;
+	lv2:symbol "toggle2";
+	lv2:name "B: ZamComp ON";
 	lv2:minimum 0.0 ;
-	lv2:maximum 2.0 ;
-	lv2:default 1.0 ;
-	lv2:portProperty lv2:enumeration;
-	lv2:scalePoint [ rdfs:label "Uncoupled"; rdf:value 0.0 ] ;
-	lv2:scalePoint [ rdfs:label "Average"; rdf:value 1.0 ] ;
-	lv2:scalePoint [ rdfs:label "Maximum"; rdf:value 2.0 ] ;
+	lv2:maximum 1.0 ;
+	lv2:default 0.0 ;
+	lv2:portProperty lv2:toggled;
+	],
+
+	[
+	a lv2:ControlPort, lv2:InputPort;
+	lv2:index 27;
+	lv2:symbol "toggle3";
+	lv2:name "C: ZamComp ON";
+	lv2:minimum 0.0 ;
+	lv2:maximum 1.0 ;
+	lv2:default 0.0 ;
+	lv2:portProperty lv2:toggled;
+	],
+	
+	[
+	a lv2:ControlPort, lv2:InputPort ;
+	lv2:index 28;
+	lv2:symbol "gainglobal";
+	lv2:name "Output Gain (dB)";
+	lv2:minimum 0.0 ;
+	lv2:maximum 30.0 ;
+	lv2:default 0.0 ;
+	ue:unit ue:db;
 	].
