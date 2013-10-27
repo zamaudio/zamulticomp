@@ -22,9 +22,10 @@
 #include "lv2/lv2plug.in/ns/lv2core/lv2.h"
 
 #define ZAMULTICOMP_URI "http://zamaudio.com/lv2/zamulticomp"
-#define MAX_FILT 4
+#define MAX_FILT 8
 #define MAX_COMP 3
 #define ONEOVERROOT2 0.7071068f
+#define ROOT2 1.4142135f
 
 typedef enum {
 	ZAMCOMP_INPUT = 0,
@@ -389,16 +390,21 @@ run(LV2_Handle instance, uint32_t n_samples)
 	int toggle3 = (*(zamcomp->toggle3) > 0.f) ? 1 : 0;
 
 	set_lp_coeffs(zamcomp, *(zamcomp->xover1), ONEOVERROOT2, zamcomp->srate, 0);
-	set_hp_coeffs(zamcomp, *(zamcomp->xover1), ONEOVERROOT2, zamcomp->srate, 1);
-	set_lp_coeffs(zamcomp, *(zamcomp->xover2), ONEOVERROOT2, zamcomp->srate, 2);
-	set_hp_coeffs(zamcomp, *(zamcomp->xover2), ONEOVERROOT2, zamcomp->srate, 3);
+	set_lp_coeffs(zamcomp, *(zamcomp->xover1), ONEOVERROOT2, zamcomp->srate, 1);
+	set_hp_coeffs(zamcomp, *(zamcomp->xover1), ONEOVERROOT2, zamcomp->srate, 2);
+	set_hp_coeffs(zamcomp, *(zamcomp->xover1), ONEOVERROOT2, zamcomp->srate, 3);
+	set_lp_coeffs(zamcomp, *(zamcomp->xover2), ONEOVERROOT2, zamcomp->srate, 4);
+	set_lp_coeffs(zamcomp, *(zamcomp->xover2), ONEOVERROOT2, zamcomp->srate, 5);
+	set_hp_coeffs(zamcomp, *(zamcomp->xover2), ONEOVERROOT2, zamcomp->srate, 6);
+	set_hp_coeffs(zamcomp, *(zamcomp->xover2), ONEOVERROOT2, zamcomp->srate, 7);
 
 	for (uint32_t i = 0; i < n_samples; ++i) {
 
-		float tmp1, tmp2, tmp3, tmp4, tmp5, tmp6;
+		float tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, fil1, fil2, fil3, fil4;
 		output[i] = input[i];
 
-		tmp1 = run_filter(zamcomp, 0, input[i]);
+		fil1 = run_filter(zamcomp, 0, input[i]);
+		tmp1 = run_filter(zamcomp, 1, fil1);
 		tmp2 = toggle1 ? 
 			run_comp(zamcomp, 0, 
 				*(zamcomp->attack1), 
@@ -409,8 +415,10 @@ run(LV2_Handle instance, uint32_t n_samples)
 				*(zamcomp->makeup1), 
 				zamcomp->gainr1,
 				tmp1) : tmp1;
-		tmp3 = run_filter(zamcomp, 1, input[i]);
-		tmp4 = run_filter(zamcomp, 2, tmp3);
+		fil2 = run_filter(zamcomp, 2, input[i]);
+		tmp3 = run_filter(zamcomp, 3, fil2);
+		fil3 = run_filter(zamcomp, 4, tmp3);
+		tmp4 = run_filter(zamcomp, 5, fil3);
 		tmp3 = toggle2 ? 
 			run_comp(zamcomp, 1, 
 				*(zamcomp->attack2), 
@@ -421,7 +429,8 @@ run(LV2_Handle instance, uint32_t n_samples)
 				*(zamcomp->makeup2), 
 				zamcomp->gainr2,
 				tmp4) : tmp4;
-		tmp5 = run_filter(zamcomp, 3, input[i]);
+		fil4 = run_filter(zamcomp, 6, input[i]);
+		tmp5 = run_filter(zamcomp, 7, fil4);
 		tmp6 = toggle3 ? 
 			run_comp(zamcomp, 2, 
 				*(zamcomp->attack3), 
@@ -433,7 +442,7 @@ run(LV2_Handle instance, uint32_t n_samples)
 				zamcomp->gainr3,
 				tmp5) : tmp5;
 		output[i] = tmp2 + tmp3 + tmp6;
-		output[i] *= 2.f * from_dB(*(zamcomp->gainglobal));
+		output[i] *= from_dB(*(zamcomp->gainglobal));
 	}
 }
 
