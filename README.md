@@ -1,9 +1,9 @@
-zamulticompx2
-=============
+zamulticomp
+===========
 
-ZaMultiCompX2 - LV2 stereo multiband compressor plugin
+ZaMultiComp - LV2 mono multiband compressor plugin
 
-This is the stereo version of my multiband compressor plugin.
+This is my single channel multiband compressor plugin.
 Feel free to leave comments on my blog as all feedback is appreciated.
 
 http://www.zamaudio.com/?p=870
