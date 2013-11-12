@@ -32,13 +32,6 @@ else
   LV2FLAGS=`pkg-config --cflags --libs lv2`
 endif
 
-ifeq ($(shell pkg-config --exists lv2-gui || echo no), no)
-  $(error "LV2-GUI is required ")
-else
-  LV2GUIFLAGS=`pkg-config --cflags --libs lv2-gui lv2`
-endif
-
-
 $(BUNDLE): manifest.ttl zamulticomp.ttl zamulticomp$(LIB_EXT)
 	rm -rf $(BUNDLE)
 	mkdir $(BUNDLE)
@@ -50,9 +43,6 @@ zamulticomp$(LIB_EXT): zamulticomp.c
 		zamulticomp.c \
 		$(LV2FLAGS) $(LDFLAGS)
 
-zamulticomp.peg: zamulticomp.ttl
-	lv2peg zamulticomp.ttl zamulticomp.peg
-
 install: $(BUNDLE)
 	install -d $(DESTDIR)$(LV2DIR)/$(BUNDLE)
 	install -t $(DESTDIR)$(LV2DIR)/$(BUNDLE) $(BUNDLE)/*
@@ -61,6 +51,6 @@ uninstall:
 	rm -rf $(DESTDIR)$(LV2DIR)/$(BUNDLE)
 
 clean:
-	rm -rf $(BUNDLE) zamulticomp$(LIB_EXT) zamulticomp$(LIB_EXT) zamulticomp.peg
+	rm -rf $(BUNDLE) zamulticomp$(LIB_EXT)
 
 .PHONY: clean install uninstall
